@@ -1,4 +1,4 @@
-﻿# coding: utf-8
+# coding: utf-8
 """
 ks_tool_gui_v3.py
 Formato TXT: "dialogue | #Nome | Texto"
@@ -20,6 +20,7 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 GLINK_PATTERN = re.compile(r'\[glink\s+.*?text="([^"]+)".*?\]')
 GLINK_REPLACE_PATTERN = re.compile(r'(text=")([^"]+)(")')
 TAGS_REMOVAL_PATTERN = re.compile(r'\[.*?\]')
+TB_PTEXT_PATTERN = re.compile(r'\[tb_ptext_show\s+.*?text="([^"]+)".*?\]')
 
 def extract_ks_data(file_path: Path) -> List[Dict]:
     """Lê o .ks e extrai textos, rastreando nomes de personagens (#Nome)."""
@@ -48,7 +49,20 @@ def extract_ks_data(file_path: Path) -> List[Dict]:
                     "translated": ""
                 })
             continue
-            
+
+        # 1b. Extrair de tb_ptext_show (aparecem fora dos blocos tyrano_code)
+        if stripped.startswith('[tb_ptext_show'):
+            match = TB_PTEXT_PATTERN.search(stripped)
+            if match:
+                extracted.append({
+                    "line_num": i,
+                    "type": "tb_ptext",
+                    "original": match.group(1),
+                    "character": "",
+                    "translated": ""
+                })
+            continue
+
         # 2. Rastrear blocos de código
         if stripped == '[tb_start_tyrano_code]':
             in_tyrano_code = True
@@ -106,6 +120,10 @@ def inject_ks_data(original_ks_path: Path, entries: List[Dict]) -> List[str]:
                 lines[idx] = leading_spaces + translated_text + '\n'
         
         elif item["type"] == "glink":
+            if idx < len(lines):
+                lines[idx] = GLINK_REPLACE_PATTERN.sub(rf'\g<1>{translated_text}\g<3>', lines[idx])
+
+        elif item["type"] == "tb_ptext":
             if idx < len(lines):
                 lines[idx] = GLINK_REPLACE_PATTERN.sub(rf'\g<1>{translated_text}\g<3>', lines[idx])
 
